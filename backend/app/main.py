@@ -65,10 +65,8 @@ app.add_middleware(
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
-# We'll import and include routers here as we build each phase.
-# Example (Phase 3):
-#   from app.api.auth import router as auth_router
-#   app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+from app.api.auth import router as auth_router
+app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 
 
 # ── Health Check ───────────────────────────────────────────────────────────────
