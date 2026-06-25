@@ -1,0 +1,52 @@
+# ── Secrets ───────────────────────────────────────────────────────────────────
+.env
+*.pem
+*.key
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── Node / Frontend ───────────────────────────────────────────────────────────
+node_modules/
+dist/
+.cache/
+*.local
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+# Don't ignore docker-compose.yml — it's committed.
+# But ignore override files that contain local secrets.
+docker-compose.override.yml
+
+# ── IDEs ──────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# ── Alembic ───────────────────────────────────────────────────────────────────
+# The versions/ folder IS committed — it contains migration history.
+# But don't commit the pycache inside it.
+backend/alembic/versions/__pycache__/
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+celerybeat-schedule
+celerybeat.pid

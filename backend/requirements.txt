@@ -1,0 +1,61 @@
+# ── Web Framework ─────────────────────────────────────────────────────────────
+# FastAPI: our API framework. Async-first, auto-generates OpenAPI docs.
+fastapi==0.111.0
+
+# Uvicorn: ASGI server that runs FastAPI. The "uvloop" extra uses libuv for
+# maximum async performance.
+uvicorn[standard]==0.29.0
+
+# ── Database ───────────────────────────────────────────────────────────────────
+# SQLAlchemy: ORM. We use the async version (AsyncSession) so DB queries don't
+# block the event loop.
+sqlalchemy[asyncio]==2.0.30
+
+# asyncpg: async PostgreSQL driver, required by SQLAlchemy's async engine.
+asyncpg==0.29.0
+
+# Alembic: database migration tool. Works alongside SQLAlchemy to version-control
+# schema changes (like git, but for database tables).
+alembic==1.13.1
+
+# ── Background Jobs ────────────────────────────────────────────────────────────
+# Celery: distributed task queue for background jobs (syncing, categorizing).
+celery==5.4.0
+
+# redis: Python Redis client. Used by both Celery (broker/backend) and our app
+# (caching Spotify tokens).
+redis==5.0.4
+
+# Celery Beat: scheduler extension that runs periodic tasks (like cron). Needed
+# for the automatic 30-minute sync.
+celery[beat]==5.4.0
+
+# ── HTTP Client ────────────────────────────────────────────────────────────────
+# httpx: async HTTP client. Used to call the Spotify Web API. Unlike the
+# requests library, httpx supports async/await natively.
+httpx==0.27.0
+
+# ── Auth & Security ────────────────────────────────────────────────────────────
+# python-jose: JWT encoding/decoding for our session tokens.
+python-jose[cryptography]==3.3.0
+
+# passlib: password hashing (bcrypt). Not needed for Spotify OAuth but good
+# practice to include for any future local auth.
+passlib[bcrypt]==1.7.4
+
+# ── Config & Environment ───────────────────────────────────────────────────────
+# pydantic-settings: loads config from .env files into typed Python classes.
+# This replaces raw os.environ calls with validated, type-safe settings.
+pydantic-settings==2.2.1
+
+# python-dotenv: loads .env file into environment variables.
+python-dotenv==1.0.1
+
+# ── Serialization ──────────────────────────────────────────────────────────────
+# Already included with FastAPI, but explicitly pinned.
+pydantic==2.7.1
+
+# ── Dev / Testing ─────────────────────────────────────────────────────────────
+pytest==8.2.0
+pytest-asyncio==0.23.6
+httpx==0.27.0         # also used as test client for FastAPI
