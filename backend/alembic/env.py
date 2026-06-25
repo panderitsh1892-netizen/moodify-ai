@@ -25,6 +25,7 @@ from app.core.database import Base
 
 # Import all models so Alembic can detect them for auto-generation.
 from app.models.user import User  # noqa: F401
+from app.models.track import Track  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
