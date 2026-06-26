@@ -76,18 +76,7 @@ class SpotifyService:
         limit: int = 50,
         after: int | None = None,
     ) -> dict:
-        """
-        Fetch the user's recently played tracks from Spotify.
-
-        Args:
-            access_token : Valid Spotify access token
-            limit        : Number of tracks to fetch (max 50)
-            after        : Unix timestamp in ms — fetch tracks played AFTER
-                           this time. Used for incremental syncs.
-
-        Returns:
-            Spotify API response dict with "items" list of play events
-        """
+        """Fetch the user's recently played tracks from Spotify."""
         params: dict = {"limit": limit}
         if after is not None:
             params["after"] = after
@@ -101,16 +90,52 @@ class SpotifyService:
             response.raise_for_status()
             return response.json()
 
-    async def get_valid_access_token(self, user) -> str:
+    async def get_audio_features(
+        self,
+        access_token: str,
+        track_ids: list[str],
+    ) -> list[dict]:
         """
-        Return a valid access token, refreshing if expired.
+        Fetch audio features for multiple tracks in one API call.
+
+        Spotify's audio-features endpoint accepts up to 100 track IDs
+        at once, making it efficient for batch processing.
+
+        Audio features include:
+        - valence     : musical positivity (0.0 sad → 1.0 happy)
+        - energy      : intensity (0.0 calm → 1.0 intense)
+        - danceability: dance suitability (0.0 → 1.0)
+        - tempo       : BPM
+        - speechiness : spoken words ratio (0.0 music → 1.0 speech)
+        - key         : musical key (0=C, 1=C#, ... 11=B)
 
         Args:
-            user: User ORM object
+            access_token : Valid Spotify access token
+            track_ids    : List of Spotify track IDs (max 100 per call)
 
         Returns:
-            Valid Spotify access token
+            List of audio feature dicts (one per track)
         """
+        if not track_ids:
+            return []
+
+        # Spotify allows max 100 IDs per request
+        # We'll chunk them in the categorizer service
+        ids_param = ",".join(track_ids[:100])
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{SPOTIFY_API_BASE}/audio-features",
+                headers={"Authorization": f"Bearer {access_token}"},
+                params={"ids": ids_param},
+            )
+            response.raise_for_status()
+            data = response.json()
+            # Filter out None values (Spotify returns null for some tracks)
+            return [f for f in data.get("audio_features", []) if f is not None]
+
+    async def get_valid_access_token(self, user) -> str:
+        """Return a valid access token, refreshing if expired."""
         if self.is_token_expired(user.token_expiry):
             token_data = await self.refresh_access_token(user.refresh_token)
             user.access_token = token_data["access_token"]
@@ -119,7 +144,6 @@ class SpotifyService:
             )
             if "refresh_token" in token_data:
                 user.refresh_token = token_data["refresh_token"]
-
         return user.access_token
 
     @staticmethod
