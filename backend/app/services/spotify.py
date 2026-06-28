@@ -30,7 +30,7 @@ class SpotifyService:
             "redirect_uri": self.redirect_uri,
             "scope": settings.SPOTIFY_SCOPES,
             "state": state,
-            "show_dialog": "false",
+            "show_dialog": "true",
         }
         return f"{SPOTIFY_AUTH_URL}?{urlencode(params)}"
 
@@ -76,7 +76,7 @@ class SpotifyService:
         limit: int = 50,
         after: int | None = None,
     ) -> dict:
-        """Fetch the user's recently played tracks from Spotify."""
+        """Fetch the user's recently played tracks."""
         params: dict = {"limit": limit}
         if after is not None:
             params["after"] = after
@@ -90,49 +90,90 @@ class SpotifyService:
             response.raise_for_status()
             return response.json()
 
-    async def get_audio_features(
+    async def create_playlist(
         self,
         access_token: str,
-        track_ids: list[str],
-    ) -> list[dict]:
-        """
-        Fetch audio features for multiple tracks in one API call.
-
-        Spotify's audio-features endpoint accepts up to 100 track IDs
-        at once, making it efficient for batch processing.
-
-        Audio features include:
-        - valence     : musical positivity (0.0 sad → 1.0 happy)
-        - energy      : intensity (0.0 calm → 1.0 intense)
-        - danceability: dance suitability (0.0 → 1.0)
-        - tempo       : BPM
-        - speechiness : spoken words ratio (0.0 music → 1.0 speech)
-        - key         : musical key (0=C, 1=C#, ... 11=B)
-
-        Args:
-            access_token : Valid Spotify access token
-            track_ids    : List of Spotify track IDs (max 100 per call)
-
-        Returns:
-            List of audio feature dicts (one per track)
-        """
-        if not track_ids:
-            return []
-
-        # Spotify allows max 100 IDs per request
-        # We'll chunk them in the categorizer service
-        ids_param = ",".join(track_ids[:100])
-
+        spotify_user_id: str,
+        name: str,
+        description: str = "",
+        public: bool = False,
+    ) -> dict:
+        """Create a new playlist in the user's Spotify account."""
+        # POST /me/playlists is the new endpoint (Feb 2026 migration)
+        # Old endpoint POST /users/{user_id}/playlists returns 403 in Dev mode
         async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{SPOTIFY_API_BASE}/audio-features",
-                headers={"Authorization": f"Bearer {access_token}"},
-                params={"ids": ids_param},
+            response = await client.post(
+                f"{SPOTIFY_API_BASE}/me/playlists",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "name": name,
+                    "description": description,
+                    "public": public,
+                },
             )
             response.raise_for_status()
-            data = response.json()
-            # Filter out None values (Spotify returns null for some tracks)
-            return [f for f in data.get("audio_features", []) if f is not None]
+            return response.json()
+
+    async def add_tracks_to_playlist(
+        self,
+        access_token: str,
+        playlist_id: str,
+        track_uris: list[str],
+    ) -> dict:
+        """Add tracks to an existing Spotify playlist."""
+        if not track_uris:
+            return {}
+
+        last_response = {}
+        chunk_size = 100
+        for i in range(0, len(track_uris), chunk_size):
+            chunk = track_uris[i : i + chunk_size]
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{SPOTIFY_API_BASE}/playlists/{playlist_id}/items",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"uris": chunk},
+                )
+                response.raise_for_status()
+                last_response = response.json()
+
+        return last_response
+
+    async def get_playlist_tracks(
+        self,
+        access_token: str,
+        playlist_id: str,
+    ) -> list[str]:
+        """Get all track IDs currently in a Spotify playlist."""
+        track_ids = []
+        url = f"{SPOTIFY_API_BASE}/playlists/{playlist_id}/items"
+        params = {"fields": "items(track(id)),next", "limit": 100}
+
+        async with httpx.AsyncClient() as client:
+            while url:
+                response = await client.get(
+                    url,
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    params=params,
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                for item in data.get("items", []):
+                    track = item.get("track")
+                    if track and track.get("id"):
+                        track_ids.append(track["id"])
+
+                url = data.get("next")
+                params = {}
+
+        return track_ids
 
     async def get_valid_access_token(self, user) -> str:
         """Return a valid access token, refreshing if expired."""
