@@ -68,10 +68,12 @@ app.add_middleware(
 from app.api.auth import router as auth_router
 from app.api.tracks import router as tracks_router
 from app.api.playlists import router as playlists_router
+from app.api.admin import router as admin_router
 
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(tracks_router, prefix="/api/tracks", tags=["tracks"])
 app.include_router(playlists_router, prefix="/api/playlists", tags=["playlists"])
+app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
 
 
 # ── Health Check ───────────────────────────────────────────────────────────────

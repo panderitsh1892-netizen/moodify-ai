@@ -1,31 +1,3 @@
-# docker-compose.yml
-# ───────────────────
-# Orchestrates all Moodify AI services for local development.
-#
-# Services:
-#   postgres  — persistent relational database
-#   redis     — cache + Celery message broker
-#   backend   — FastAPI application
-#   celery    — background task worker
-#   frontend  — React dev server
-#
-# Design decisions:
-#
-# 1. Named volumes (postgres_data, redis_data) — data persists across
-#    `docker compose down` restarts. Use `docker compose down -v` to wipe them.
-#
-# 2. depends_on with healthchecks — ensures postgres and redis are actually
-#    ready to accept connections before backend/celery start. Without this,
-#    FastAPI would crash immediately trying to connect to a starting postgres.
-#
-# 3. Shared environment via env_file — all services read from .env so we
-#    never hardcode secrets in this file.
-#
-# 4. Volume mounts for hot-reload — backend and frontend mount source code
-#    so changes take effect immediately without rebuilding containers.
-
-
-
 services:
 
   # ── PostgreSQL ──────────────────────────────────────────────────────────────
@@ -38,7 +10,7 @@ services:
       POSTGRES_USER: moodify
       POSTGRES_PASSWORD: moodify
     ports:
-      - "5432:5432"   # Exposed so you can connect with pgAdmin or psql locally
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -54,7 +26,7 @@ services:
     container_name: moodify_redis
     restart: unless-stopped
     ports:
-      - "6379:6379"   # Exposed so you can inspect with redis-cli locally
+      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -74,9 +46,6 @@ services:
     env_file:
       - .env
     environment:
-      # Override localhost URLs with Docker service names.
-      # Inside Docker's network, services talk to each other by service name,
-      # not localhost. "postgres" resolves to the postgres container's IP.
       DATABASE_URL: postgresql+asyncpg://moodify:moodify@postgres:5432/moodify
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
@@ -84,7 +53,6 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Mount source code for hot-reload (--reload in uvicorn CMD)
       - ./backend:/app
     depends_on:
       postgres:
@@ -99,14 +67,14 @@ services:
       start_period: 15s
 
   # ── Celery Worker ───────────────────────────────────────────────────────────
+  # Runs the actual background tasks (sync, categorize, playlist update)
   celery:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: moodify_celery
     restart: unless-stopped
-    # Override the default CMD — run Celery worker instead of uvicorn
-    
+    command: celery -A app.tasks.celery_app.celery_app worker --loglevel=info --concurrency=2
     env_file:
       - .env
     environment:
@@ -125,13 +93,14 @@ services:
         condition: service_healthy
 
   # ── Celery Beat (Scheduler) ─────────────────────────────────────────────────
-  # Separate from the worker so we can scale workers without multiple schedulers.
+  # Fires scheduled tasks (sync every 30 min) — only ONE should run
   celery-beat:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: moodify_celery_beat
     restart: unless-stopped
+    command: celery -A app.tasks.celery_app.celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
     env_file:
       - .env
     environment:
@@ -155,18 +124,14 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      # Mount source for hot module replacement
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
-      # Prevent node_modules from being overwritten by the host mount
       - /app/node_modules
     environment:
       - VITE_API_URL=http://localhost:8000
     depends_on:
       - backend
 
-# ── Named Volumes ───────────────────────────────────────────────────────────────
-# Data persists even after containers are stopped.
 volumes:
   postgres_data:
   redis_data:
