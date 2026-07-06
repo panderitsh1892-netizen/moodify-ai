@@ -143,11 +143,18 @@ async def spotify_callback(
     # Issue OUR JWT token (this is what the frontend will use)
     our_jwt = create_access_token(user_id=user.id)
 
-    return TokenResponse(
-        access_token=our_jwt,
-        token_type="bearer",
-        user=UserResponse.model_validate(user),
-    )
+    # Redirect to frontend with token in URL params
+    # Frontend extracts token from URL and stores in localStorage
+    import json
+    from fastapi.responses import RedirectResponse
+    from urllib.parse import quote
+
+    user_data = UserResponse.model_validate(user).model_dump()
+    user_data["created_at"] = user_data["created_at"].isoformat()
+    user_json = quote(json.dumps(user_data))
+
+    frontend_url = f"http://127.0.0.1:3000/?token={our_jwt}&user={user_json}"
+    return RedirectResponse(url=frontend_url)
 
 
 # ── Get Current User ───────────────────────────────────────────────────────────
